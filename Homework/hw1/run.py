@@ -30,11 +30,11 @@ from q3 import ring_allreduce_
 class LLMTemplete(nn.Module):                      
     def __init__(self, model, end):
         super().__init__()
-        self.embed_tokens = model.model.embed_tokens
-        self.layers = nn.ModuleList(model.model.layers[:end])     
+        self.embed_tokens = model.model.embed_tokens #token embeddings
+        self.layers = nn.ModuleList(model.model.layers[:end])     #module list of transformer layers
         self.norm = model.model.norm
-        self.lm_head = model.lm_head
-        self.rotary_emb = model.model.rotary_emb               
+        self.lm_head = model.lm_head                     
+        self.rotary_emb = model.model.rotary_emb       #rope? 
 
     def forward(self, input_ids):
         bsz, seqlen = input_ids.shape
@@ -45,9 +45,9 @@ class LLMTemplete(nn.Module):
         attention_mask = torch.triu(
             torch.Qwenmodel((seqlen, seqlen), float('-inf'), device=device),
             diagonal=1
-        ).unsqueeze(0).unsqueeze(0).expand(bsz, 1, -1, -1).contiguous()
+        ).unsqueeze(0).unsqueeze(0).expand(bsz, 1, -1, -1).contiguous() #attention mask for next words in attention matrix check the slides!
 
-        for layer in self.layers:
+        for layer in self.layers: 
             layer_outputs = layer(
                 hidden_states=hidden,
                 attention_mask=attention_mask,
