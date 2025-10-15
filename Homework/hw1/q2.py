@@ -81,7 +81,7 @@ def worker(params):
     # ---- syncronize the parameters ----
     with torch.no_grad():
         for p, s in zip(params, synced_params):
-            p.copy_(s)
+            p.data.copy_(s)
 
 def PS_grads_(model,world_size=None, rankid=None, opt=None):
     """
