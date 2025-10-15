@@ -16,11 +16,16 @@ def server(params, opt, world):
     # your code here: receive gradients form worker, and add them to agg#
     #                                                                   #
     #                                                                   #
-    
+    bufs, reqs = [], []
     for src in range(1, world):
-        recv_buf = torch.empty_like(flat_grad)
-        dist.recv(recv_buf, src=src)
-        agg.add_(recv_buf)
+        buf = torch.empty_like(flat_grad)
+        bufs.append(buf)
+        reqs.append(dist.irecv(tensor=buf, src=src))
+    for r in reqs: 
+        r.wait()
+    for buf in bufs: 
+        agg.add_(buf)
+
     agg.div_(world) #average the gradients
 
 
@@ -37,11 +42,15 @@ def server(params, opt, world):
     # your code here: send packed 1-D parameter tensor to all workers   #
     #                                                                   #
     #                                                                   #
+    dist.broadcast(flat_param, src=0) #use broadcast instead of isend for simplicity
+    """
     for dst in range(1, world):
-        dist.send(flat_param, dst=dst)
+        s = dist.isend(flat_param, dst=dst)
+        s.wait()\
+    """
 
 def worker(params):
-    flat_grad = _flatten_dense_tensors([p.grad for p in params]).contiguous()
+    flat_grad = _flatten_dense_tensors([p.grad for p in params if p.grad is not None]).contiguous()
     # ---- push grads to server ----
 
     #                                                                   #
@@ -49,22 +58,23 @@ def worker(params):
     # your code here: send packed 1-D gradient to server
     #                                                                   #
     #                                                                   #
-    dist.send(flat_grad, dst=0)
+    req = dist.isend(flat_grad, dst=0)
+    req.wait()
     # ---- receive updated params, write into local model ----
-    
+    flat_param_shape = _flatten_dense_tensors([p.data for p in params]).contiguous()
+    dist.broadcast(tensor=flat_param_shape, src=0)
+
     #                                                                   #
     #                                                                   #
     # your code here: please get correct 1-D packed parameter from server
     #           And then unpacked it and store in synced_params
     #                                                                   #
-    synced_params = None #you should  assign correct value for synced_params#
-    recv_buf = torch.empty_like(flat_grad)
-    dist.recv(recv_buf, src=0)
-    synced_params = _unflatten_dense_tensors(recv_buf, [p.data for p in params])
+    synced_params = _unflatten_dense_tensors(flat_param_shape, [p.data for p in params])
 
     # ---- syncronize the parameters ----
-    for p, s in zip(params, synced_params):
-        p.data.copy_(s)
+    with torch.no_grad():
+        for p, s in zip(params, synced_params):
+            p.copy_(s)
 
 def PS_grads_(model,world_size=None, rankid=None, opt=None):
     """

@@ -25,6 +25,34 @@ import time
 from q2 import PS_grads_
 from q3 import ring_allreduce_
 
+
+## Some notes :
+
+## Each sample has a fixed length of 256 tokens.
+## The batch size per rank is 8
+## each batch as 3 samples
+## So, each rank has 24 samples, totally 72 samples across 3 ranks
+## We run 1 epoch in total
+## The learning rate is 1e-4
+## We use Adam optimizer
+## We use cross entropy loss, and the loss is averaged over all tokens in the local batch
+## We do not use any learning rate scheduler
+## We do not use any gradient clipping
+## We do not use any weight decay
+## We do not use any dropout
+## We do not use any mixed precision training
+## We do not use any gradient accumulation
+## We do not use any warmup
+## We do not use any bias correction in Adam optimizer
+## We do not use any gradient checkpointing
+## We do not use any model parallelism, only data parallelism
+## We do not use any distributed optimizer, only standard Adam optimizer
+## We do not use any distributed data sampler, only standard data sampler
+## We do not use any logging library, only print to stdout
+## We do not use any tensorboard, only print to stdout
+
+
+
 ###a example of LLM templete for reference###
 ###you don't have to actually use it###
 class LLMTemplete(nn.Module):                      
@@ -37,7 +65,7 @@ class LLMTemplete(nn.Module):
         self.rotary_emb = model.model.rotary_emb       #rope? 
 
     def forward(self, input_ids):
-        bsz, seqlen = input_ids.shape
+        bsz, seqlen = input_ids.shape # bsz -> batch_size , input_ids batch of token ids
         device = input_ids.device
         position_ids = torch.arange(seqlen, device=device).unsqueeze(0).expand(bsz, -1).contiguous()
         hidden = self.embed_tokens(input_ids)
@@ -138,7 +166,7 @@ def allreduce_grads_ring_(model: nn.Module, world_size=None, rankid=None, opt=No
     grads = [p.grad for p in model.parameters() if p.grad is not None]
     if not grads: return
     flat = _flatten_dense_tensors(grads)
-    ring_allreduce_(flat, world_size = world_size, rankid = rankid)
+    ring_allreduce_(flat, world_size = world_size, rankid = rankid) #q3
     synced = _unflatten_dense_tensors(flat, grads)
     for g, s in zip(grads, synced):
         g.copy_(s)
