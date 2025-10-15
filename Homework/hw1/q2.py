@@ -42,7 +42,12 @@ def server(params, opt, world):
     # your code here: send packed 1-D parameter tensor to all workers   #
     #                                                                   #
     #                                                                   #
-    dist.broadcast(flat_param, src=0) #use broadcast instead of isend for simplicity
+    #dist.broadcast(flat_param, src=0) #use broadcast instead of isend for simplicity
+    send_buf = []
+    for dst in range(1, world):
+        send_buf.append(dist.isend(tensor=flat_param, dst=dst))
+    for s in send_buf: s.wait()
+
     """
     for dst in range(1, world):
         s = dist.isend(flat_param, dst=dst)
@@ -62,7 +67,9 @@ def worker(params):
     req.wait()
     # ---- receive updated params, write into local model ----
     flat_param_shape = _flatten_dense_tensors([p.data for p in params]).contiguous()
-    dist.broadcast(tensor=flat_param_shape, src=0)
+    #dist.broadcast(tensor=flat_param_shape, src=0) #broadcast is a collective that can be used to replace isend/recv pair
+    r = dist.irecv(tensor=flat_param_shape, src=0)
+    r.wait()
 
     #                                                                   #
     #                                                                   #
