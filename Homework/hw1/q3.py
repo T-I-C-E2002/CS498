@@ -10,12 +10,15 @@ def reduce_scatter(chunks, tmp, world, rank, left, right):
     #                                                                   #
     # your code here: follow slides instruction: do counter-clockwise iteration
     #                                                                   #
-    #                                                                   #
+    #               
+    #                                                     #
     for i in range(world - 1):
         send_req = dist.isend(tensor=chunks[(rank - i) % world], dst=right)
-        dist.recv(tensor=tmp, src=left)
+        r = dist.irecv(tensor=tmp, src=left)
         send_req.wait()
+        r.wait()
         chunks[(rank - i - 1) % world].add_(tmp)
+        
     return
         
 def all_gather(chunks, tmp, current, world, rank, left, right):
@@ -72,9 +75,10 @@ def ring_allreduce_(tensor: torch.Tensor, world_size = None, rankid = None):
     # You may adjust the function signature (input structure) of `reduce_scatter` and `all_gather` if needed.
     tmp = torch.empty_like(chunks[0])
     reduce_scatter(chunks, tmp, world, rank, left, right)
+    dist.barrier()
     current = (rank - (world - 1)) % world
     all_gather(chunks, tmp, current, world, rank, left, right)
-    
+    dist.barrier()
     if padded_flat is not flat:
         flat.copy_(padded_flat[:n])
     # stitch & unpad  
