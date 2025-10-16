@@ -30,8 +30,9 @@ def all_gather(chunks, tmp, current, world, rank, left, right):
     idx = current
     for _ in range(world - 1):
         send_req = dist.isend(tensor=chunks[idx], dst=right)
-        dist.recv(tensor=tmp, src=left)
+        rec_ = dist.irecv(tensor=tmp, src=left)
         send_req.wait()
+        rec_.wait()
         idx = (idx - 1 + world) % world
         chunks[idx].copy_(tmp)
     return
